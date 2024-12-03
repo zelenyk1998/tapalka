@@ -15,7 +15,7 @@ const wss = new WebSocketServer({ server });
 
 // Redis client setup
 const client = redis.createClient({
-  url: process.env.REDIS_URL || 'redis://red-ct7e1f3tq21c73bn2bu0:6379'
+  url: process.env.REDIS_URL || 'redis://red-ct7e1f3tq21c73bn2bu0.render.com:6379'
 });
 
 // Connect to Redis
