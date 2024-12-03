@@ -1,0 +1,214 @@
+
+.coffee-container {
+  position: relative;
+  width: 200px;
+  height: 250px;
+  margin: 20px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.coffee-cup {
+  position: relative;
+  width: 140px;
+  height: 160px;
+  background: #fff;
+  border-radius: 10px 10px 60px 60px;
+  box-shadow: 
+    0 0 0 8px #f3f3f3,
+    0 15px 25px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.coffee-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0%;
+  background: linear-gradient(
+    to bottom,
+    #6f4e37,
+    #4a332d
+  );
+  transition: height 0.5s ease-in-out;
+}
+
+.coffee-ripples {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ripple {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  animation: ripple 2s infinite;
+}
+
+.ripple:nth-child(1) {
+  left: 25%;
+  animation-delay: 0s;
+}
+
+.ripple:nth-child(2) {
+  left: 50%;
+  animation-delay: 0.5s;
+}
+
+.ripple:nth-child(3) {
+  left: 75%;
+  animation-delay: 1s;
+}
+
+.cup-shine {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 15px;
+  height: 60%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  border-radius: 10px;
+  transform: skewX(-15deg);
+}
+
+.cup-handle {
+  position: absolute;
+  right: 25px;
+  top: 30px;
+  width: 40px;
+  height: 80px;
+  border: 12px solid #f3f3f3;
+  border-left: none;
+  border-radius: 0 40px 40px 0;
+}
+
+.plate {
+  position: relative;
+  width: 180px;
+  height: 20px;
+  background: #f3f3f3;
+  border-radius: 50%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  margin-top: -10px;
+}
+
+.progress-text {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.progress-text div {
+  margin: 5px 0;
+}
+
+.progress-text div:first-child {
+  font-weight: 600;
+  color: #333;
+}
+
+.progress-text div:nth-child(2) {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.progress-text div:last-child {
+  color: #888;
+  font-size: 0.8em;
+}
+
+.coffee-fill {
+  transition: height 1s ease-in-out, background-color 1s ease-in-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+}
+
+/* Додайте анімацію пари */
+.coffee-cup::before,
+.coffee-cup::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  width: 20px;
+  height: 40px;
+  background: #fff;
+  border-radius: 20px;
+  opacity: 0;
+  filter: blur(10px);
+  animation: steam 3s infinite;
+}
+
+.coffee-cup::before {
+  left: 30px;
+  animation-delay: 0.5s;
+}
+
+.coffee-cup::after {
+  left: 80px;
+  animation-delay: 1s;
+}
+
+@keyframes steam {
+  0% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.5;
+  }
+  40% {
+    transform: translateY(-30px) scaleX(1.5);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(-60px) scaleX(2);
+    opacity: 0;
+  }
+}
+
+/* Медіа-запити для адаптивності */
+@media (max-width: 768px) {
+  .coffee-container {
+    width: 150px;
+    height: 200px;
+  }
+
+  .coffee-cup {
+    width: 100px;
+    height: 120px;
+  }
+
+  .cup-handle {
+    right: 15px;
+    width: 30px;
+    height: 60px;
+    border-width: 8px;
+  }
+
+  .plate {
+    width: 140px;
+  }
+}
