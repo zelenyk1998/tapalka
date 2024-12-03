@@ -14,9 +14,8 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 // Redis client setup
-const client = redis.createClient({
-  url: process.env.REDIS_URL || 'redis://red-ct7e1f3tq21c73bn2bu0.render.com:6379'
-});
+const redisUrl = process.env.REDIS_URL || process.env.REDIS_URL_FALLBACK || 'redis://localhost:6379';
+const client = redis.createClient({ url: redisUrl });
 
 // Connect to Redis
 await client.connect().catch(console.error);
@@ -89,41 +88,47 @@ wss.on("connection", (ws, req) => {
 app.post('/api/spend-points', async (req, res) => {
   try {
     const { sessionId, points, reward } = req.body;
-    const currentBalance = await client.get(`clicks:${sessionId}`);
-    const balance = parseFloat(currentBalance) || 0;
+    
+    await client.executeIsolated(async (isolatedClient) => {
+      await isolatedClient.watch(`clicks:${sessionId}`);
+      const currentBalance = await isolatedClient.get(`clicks:${sessionId}`);
+      const balance = parseFloat(currentBalance) || 0;
 
-    console.log('Current balance:', balance, 'Trying to spend:', points); // Для дебагу
+      console.log('Current balance:', balance, 'Trying to spend:', points); // Для дебагу
 
-    if (balance >= points) {
-      const newBalance = await client.incrByFloat(`clicks:${sessionId}`, -points);
-      const roundedBalance = Math.round(newBalance * 10) / 10;
-      
-      // Зберігаємо історію обміну
-      await client.lPush(`history:${sessionId}`, JSON.stringify({
-        date: new Date().toISOString(),
-        reward: reward,
-        points: points,
-        newBalance: roundedBalance
-      }));
+      if (balance >= points) {
+        const newBalance = balance - points;
+        const roundedBalance = Math.round(newBalance * 10) / 10;
 
-      res.json({ 
-        success: true, 
-        newBalance: roundedBalance,
-        message: 'Обмін успішний' 
-      });
+        // Зберігаємо історію обміну
+        await isolatedClient.lPush(`history:${sessionId}`, JSON.stringify({
+          date: new Date().toISOString(),
+          reward: reward,
+          points: points,
+          newBalance: roundedBalance
+        }));
 
-      // Оновлюємо баланс через WebSocket
-      wss.clients.forEach((client) => {
-        if (client.sessionId === sessionId) {
-          client.send(JSON.stringify({ clks: roundedBalance, exchange: roundedBalance }));
-        }
-      });
-    } else {
-      res.status(400).json({ 
-        success: false, 
-        message: 'Недостатньо балів' 
-      });
-    }
+        await isolatedClient.set(`clicks:${sessionId}`, roundedBalance);
+
+        res.json({ 
+          success: true, 
+          newBalance: roundedBalance,
+          message: 'Обмін успішний' 
+        });
+
+        // Оновлюємо баланс через WebSocket
+        wss.clients.forEach((client) => {
+          if (client.sessionId === sessionId) {
+            client.send(JSON.stringify({ clks: roundedBalance, exchange: roundedBalance }));
+          }
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: 'Недостатньо балів' 
+        });
+      }
+    });
   } catch (error) {
     console.error('Error spending points:', error);
     res.status(500).json({ 
@@ -136,8 +141,10 @@ app.post('/api/spend-points', async (req, res) => {
 // Endpoint для отримання історії обмінів
 app.get('/api/exchange-history', async (req, res) => {
   try {
-    const { sessionId } = req.query;
-    const history = await client.lRange(`history:${sessionId}`, 0, -1);
+    const { sessionId, page = 0, limit = 10 } = req.query;
+    const startIdx = page * limit;
+    const endIdx = startIdx + limit - 1;
+    const history = await client.lRange(`history:${sessionId}`, startIdx, endIdx);
     res.json(history.map(item => JSON.parse(item)));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch history' });
@@ -167,8 +174,15 @@ app.post('/api/reset-balance', async (req, res) => {
 app.post('/api/invite', async (req, res) => {
   try {
     const { sessionId, friendId } = req.body;
-    await client.incrByFloat(`clicks:${sessionId}`, 1000);
-    await client.incrByFloat(`clicks:${friendId}`, 500);
+    
+    await client.executeIsolated(async (isolatedClient) => {
+      await isolatedClient.watch(`clicks:${sessionId}`);
+      await isolatedClient.watch(`clicks:${friendId}`);
+      
+      await isolatedClient.incrByFloat(`clicks:${sessionId}`, 1000);
+      await isolatedClient.incrByFloat(`clicks:${friendId}`, 500);
+    });
+    
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
@@ -204,12 +218,29 @@ process.on('unhandledRejection', (err) => {
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Closing HTTP server and Redis connection...');
   
-  server.close(() => {
+  // Встановлюємо таймаут на 5 секунд для завершення всіх з'єднань
+  setTimeout(() => {
+    console.log('Some connections were not closed gracefully');
+    process.exit(1); 
+  }, 5000);
+  
+  // Закриваємо сервер
+  server.close((err) => {
+    if (err) {
+      console.error('HTTP server close error', err);
+      process.exit(1);
+    }
     console.log('HTTP server closed');
+    
+    // Закриваємо Redis після закриття сервера
+    client.quit()
+      .then(() => {
+        console.log('Redis connection closed');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('Redis quit error', err);
+        process.exit(1);
+      });
   });
-  
-  await client.quit();
-  console.log('Redis connection closed');
-  
-  process.exit(0);
 });
